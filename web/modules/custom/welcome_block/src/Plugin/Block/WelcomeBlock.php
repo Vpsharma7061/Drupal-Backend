@@ -25,7 +25,7 @@ class WelcomeBlock extends BlockBase {
             $username = $currentUser->getDisplayName();
             $message = $this->t('Welcome, @username!', ['@username' => $username]);
         } else {
-            $message = $this->t('Welcome to our  site!');
+            $message = $this->t('Welcome to our site!');
         }
   
         return [
