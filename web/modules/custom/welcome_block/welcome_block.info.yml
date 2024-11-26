@@ -1,0 +1,7 @@
+name: 'Welcome Block'
+type: module
+description: 'A custom module to display a welcome message block.'
+package: Custom
+core_version_requirement: ^10 || ^11
+dependencies:
+  - drupal:block

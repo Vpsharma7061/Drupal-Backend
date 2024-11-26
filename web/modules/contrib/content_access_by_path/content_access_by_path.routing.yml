@@ -1,0 +1,7 @@
+content_access_by_path.settings:
+  path: 'admin/config/content/content-access-by-path'
+  defaults:
+    _title: 'Content Access by Path Settings'
+    _form: 'Drupal\content_access_by_path\Form\SettingsForm'
+  requirements:
+    _permission: 'Administer content access by path'

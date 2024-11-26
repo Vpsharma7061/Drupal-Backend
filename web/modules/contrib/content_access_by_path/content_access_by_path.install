@@ -1,0 +1,79 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the Content Access module.
+ */
+
+use Drupal\Core\Entity\Entity\EntityFormDisplay;
+use Drupal\field\Entity\FieldStorageConfig;
+use Drupal\taxonomy\Entity\Vocabulary;
+
+/**
+ * Implements hook_install().
+ */
+function content_access_by_path_install() {
+  // Set the 'content_access_by_path' field on the user entity
+  // manage form display page.
+  $form_display = \Drupal::entityTypeManager()->getStorage('entity_form_display')->load('user.user.default');
+
+  // Load the default entity form display or create one if it doesn't exist.
+  if (!$form_display) {
+    $form_display = EntityFormDisplay::create([
+      'targetEntityType' => 'user',
+      'bundle' => 'user',
+      'mode' => 'default',
+      'status' => TRUE,
+    ]);
+  }
+
+  $form_display->setComponent('content_access_by_path', [
+    'type' => 'entity_reference_autocomplete',
+    'region' => 'content',
+    'weight' => 100,
+  ])->save();
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function content_access_by_path_uninstall() {
+  $vid = 'content_access_by_path';
+  $vocabulary = Vocabulary::load($vid);
+  if ($vocabulary) {
+    // Delete all taxonomy terms in content_access_by_path vocabulary.
+    $terms = \Drupal::entityTypeManager()->getStorage('taxonomy_term')->loadTree($vid);
+    foreach ($terms as $term) {
+      $term_entity = \Drupal::entityTypeManager()->getStorage('taxonomy_term')->load($term->tid);
+      if ($term_entity) {
+        $term_entity->delete();
+      }
+    }
+
+    // Delete content_access_by_path field storage from the taxonomy term.
+    $content_access_by_path_field_storage = FieldStorageConfig::loadByName('taxonomy_term', 'content_access_by_path');
+    if ($content_access_by_path_field_storage) {
+      $content_access_by_path_field_storage->delete();
+    }
+
+    // Delete the config for content_access_by_path field on the taxonomy term.
+    $content_access_by_path_config = \Drupal::configFactory()->getEditable('field.field.taxonomy_term.taxonomy_term.content_access_by_path');
+    if ($content_access_by_path_config) {
+      $content_access_by_path_config->delete();
+    }
+    // Delete content_access_by_path vocabulary.
+    $vocabulary->delete();
+  }
+
+  // Delete content_access_by_path field storage from user entity.
+  $content_access_by_path_field_storage = FieldStorageConfig::loadByName('user', 'content_access_by_path');
+  if ($content_access_by_path_field_storage) {
+    $content_access_by_path_field_storage->delete();
+  }
+
+  // Delete the config for content_access_by_path field on the user.
+  $content_access_by_path_config = \Drupal::configFactory()->getEditable('field.field.user.user.content_access_by_path');
+  if ($content_access_by_path_config) {
+    $content_access_by_path_config->delete();
+  }
+}

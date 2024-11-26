@@ -1,0 +1,124 @@
+<?php
+
+/**
+ * @file
+ * Primary module hooks for Content Access module.
+ */
+
+use Drupal\Core\Access\AccessResult;
+use Drupal\Core\Field\FieldDefinitionInterface;
+use Drupal\Core\Session\AccountInterface;
+use Drupal\taxonomy\Entity\Term;
+use Drupal\user\Entity\User;
+
+/**
+ * Implements hook_node_access().
+ */
+function content_access_by_path_node_access($node, $op, $account) {
+  if ($op === 'update' || $op === 'delete') {
+    // Load the current user so we can see if they have
+    // any content access restrictions.
+    $current_user = User::load($account->id());
+    $editable_sections = [];
+    // Get the path alias of the current node, so we can check if the user
+    // has access to edit/delete it.
+    if (isset($current_user->get('content_access_by_path')[0])) {
+      $path = \Drupal::service('path_alias.manager')->getAliasByPath('/node/' . $node->id());
+      // If the user has any value in the 'content_access_by_path' field,
+      // then remove access to edit/delete all nodes, except nodes that
+      // they created until we figure out if they have access to
+      // edit/delete this particular node.
+      // The reason we allow them to edit content that they created is so
+      // that if they haven't assigned a correct value to the path of the
+      // node, they will be locked out of that node until someone else
+      // with the correct permissions can fix it.
+      $access = AccessResult::forbidden();
+      if ($node->getOwnerId() === $account->id()) {
+        $access = AccessResult::allowed();
+      }
+      else {
+        $access = AccessResult::forbidden();
+      }
+
+      // We have a field called 'content_access_by_path' on the user entity.
+      // This is a multivalue taxonomy field to say what sections of the site
+      // this user can edit.
+      // Each of the taxonomy terms has a field called 'content_access_by_path'
+      // Users can edit all content that begins with that path.
+      // E.g. if the user has a taxonomy term with the content_access_by_path
+      // 'news' then they can edit all content that begins with '/news',
+      // such as /news/article-1 or /news/article-2.
+      // If the user has a taxonomy term with the content_access_by_path
+      // 'news/article-1' then they can edit only that node.
+      foreach ($current_user->get('content_access_by_path')->getValue('#list') as $term) {
+        // List all the taxonomy terms that the user has access to.
+        // Get the taxonomy term ID so we can load the term.
+        $user_sections_term_id = $term['target_id'];
+        // Load the taxonomy term.
+        $user_sections_term = Term::load($user_sections_term_id);
+        // Get the values of the 'content_access_by_path' field from the
+        // taxonomy term to pass it to the $editable_sections array.
+        foreach ($user_sections_term->get('content_access_by_path')->getValue('#list') as $term) {
+          $editable_section = $term['value'];
+          // $path will always begin with a '/' so we need to add one to the
+          // beginning of the value of the 'content_access_by_path' field
+          // from the taxonomy term if it does not already have one.
+          if ($editable_section[0] != '/') {
+            $editable_section = '/' . $editable_section;
+          }
+          $editable_sections[] = $editable_section;
+        }
+      }
+
+      foreach ($editable_sections as $editable_section) {
+        // Check if the path of the current node begins with the value of the
+        // 'content_access_by_path' field from the taxonomy term.
+        if (strpos($path, $editable_section) === 0) {
+          // If the path of the current node begins with the value of the
+          // 'content_access_by_path' field from the taxonomy term,
+          // then the user has access to edit/delete this node.
+          if ($op === 'update') {
+            // Check if
+            // 1. The user is the author of the node, or
+            // 2. The user has the 'edit any [type] content' permission.
+            if ($node->getOwnerId() === $account->id() || $account->hasPermission('edit any ' . $node->getType() . ' content')) {
+              $access = AccessResult::allowed();
+            }
+          }
+          if ($op === 'delete') {
+            // Check if
+            // 1. The user is the author of the node, or
+            // 2. The user has the 'delete any [type] content' permission.
+            if ($node->getOwnerId() === $account->id() || $account->hasPermission('delete any ' . $node->getType() . ' content')) {
+              $access = AccessResult::allowed();
+            }
+          }
+          break;
+        }
+      }
+      return $access;
+    }
+  }
+}
+
+/**
+ * Implements hook_entity_field_access().
+ */
+function content_access_by_path_entity_field_access($operation, FieldDefinitionInterface $field_definition, AccountInterface $account, $items = NULL) {
+  if ($field_definition->getName() == 'content_access_by_path') {
+    if ($operation == 'edit' || $operation == 'delete') {
+      // The roles that are allowed to add the content access taxonomy to users
+      // are set at the /admin/config/content/content-access-by-path page.
+      $config = \Drupal::config('content_access_by_path.settings');
+      $roles = $config->get('roles');
+      if (array_intersect($roles, $account->getRoles())) {
+        return AccessResult::allowed();
+      }
+      else {
+        return AccessResult::forbidden();
+      }
+    }
+  }
+  // No opinion.
+  return AccessResult::neutral();
+}

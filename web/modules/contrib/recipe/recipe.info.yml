@@ -1,0 +1,18 @@
+name: Recipe
+type: module
+description: 'Collect and display recipes.'
+package: Recipe
+core_version_requirement: ^10 || ^11
+dependencies:
+  - recipe:ingredient
+  - drupal:node
+  - drupal:path
+  - drupal:text
+
+test_dependencies:
+  - rdf:rdf
+
+# Information added by Drupal.org packaging script on 2024-07-09
+version: '8.x-2.2'
+project: 'recipe'
+datestamp: 1720532262

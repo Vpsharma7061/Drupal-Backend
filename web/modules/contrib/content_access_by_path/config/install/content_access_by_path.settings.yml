@@ -1,0 +1,4 @@
+roles:
+  administrator: administrator
+  anonymous: 0
+  authenticated: 0

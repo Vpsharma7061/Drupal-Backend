@@ -1,0 +1,4 @@
+name: my-lando-app
+recipe: drupal11
+config:
+  webroot: .

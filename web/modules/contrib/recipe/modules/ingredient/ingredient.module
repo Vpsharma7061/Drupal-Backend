@@ -1,0 +1,228 @@
+<?php
+
+/**
+ * @file
+ * Contains basic functions for the Ingredient module.
+ */
+
+use Drupal\Core\Render\Element;
+use Drupal\ingredient\Entity\Ingredient;
+use Drupal\migrate\Plugin\MigrateSourceInterface;
+use Drupal\migrate\Plugin\MigrationInterface;
+use Drupal\migrate\Row;
+use Drupal\migrate_drupal\Plugin\migrate\source\DrupalSqlBase;
+
+/**
+ * Implements hook_theme().
+ */
+function ingredient_theme($existing, $type, $theme, $path) {
+  return [
+    'ingredient' => [
+      'render element' => 'elements',
+    ],
+    'ingredient_formatter' => [
+      'variables' => [
+        'ingredient' => NULL,
+        'url' => NULL,
+        'name' => NULL,
+        'quantity' => 0,
+        'unit_name' => '',
+        'unit_abbreviation' => '',
+        'unit_display' => 0,
+        'note' => '',
+      ],
+    ],
+  ];
+}
+
+/**
+ * Prepares variables for ingredient templates.
+ *
+ * Default template: ingredient.html.twig.
+ *
+ * @param array $variables
+ *   An associative array containing:
+ *   - elements: An associative array containing the ingredient and any fields
+ *     attached to the ingredient. Properties used:
+ *     - #fields: A \Drupal\ingredient\IngredientInterface object.
+ *     - #view_mode: The current view mode for this ingredient, e.g.'full' or
+ *       'teaser'.
+ *   - attributes: HTML attributes for the containing element.
+ */
+function template_preprocess_ingredient(array &$variables) {
+  $variables['view_mode'] = $variables['elements']['#view_mode'];
+  $variables['ingredient'] = $variables['elements']['#ingredient'];
+  /** @var \Drupal\ingredient\IngredientInterface $ingredient */
+  $ingredient = $variables['ingredient'];
+
+  $variables['url'] = $ingredient->toUrl()->toString();
+  // We use name here because that is what appears in the UI.
+  $variables['name'] = $variables['elements']['name'];
+  unset($variables['elements']['name']);
+  $variables['page'] = $variables['view_mode'] == 'full' && ingredient_is_page($ingredient);
+
+  // Helpful $content variable for templates.
+  $variables['content'] = [];
+  foreach (Element::children($variables['elements']) as $key) {
+    $variables['content'][$key] = $variables['elements'][$key];
+  }
+}
+
+/**
+ * Returns whether the current page is the page of the passed-in ingredient.
+ *
+ * @param \Drupal\ingredient\Entity\Ingredient $ingredient
+ *   A ingredient entity.
+ *
+ * @return int|false
+ *   The ingredient's ID if displaying an ingredient's page, FALSE otherwise.
+ */
+function ingredient_is_page(Ingredient $ingredient) {
+  if (\Drupal::routeMatch()->getRouteName() == 'entity.ingredient.canonical' && $page_id = \Drupal::routeMatch()->getRawParameter('ingredient')) {
+    return $page_id == $ingredient->id();
+  }
+  return FALSE;
+}
+
+/**
+ * Converts an ingredient's quantity from decimal to fraction.
+ *
+ * @param float $ingredient_quantity
+ *   The ingredient quantity formatted as a decimal.
+ * @param string $fraction_format
+ *   A string representing the fraction format, used by sprintf().
+ * @param bool $edit_mode
+ *   Whether or not the ingredient is being edited.
+ *
+ * @return string
+ *   The ingredient quantity formatted as a fraction.
+ *
+ * @deprecated in project:8.x-2.0 and is removed from project:3.0.0. Use
+ *   \Drupal\ingredient\Utility\IngredientQuantityUtility::getQuantityFromDecimal()
+ *   instead.
+ *
+ * @see https://www.drupal.org/project/recipe/issues/3156825
+ */
+function ingredient_quantity_from_decimal($ingredient_quantity, $fraction_format = '{%d} %d&frasl;%d', $edit_mode = FALSE) {
+  return \Drupal::service('ingredient.quantity')->getQuantityFromDecimal($ingredient_quantity, $fraction_format, $edit_mode);
+}
+
+/**
+ * Converts an ingredient's quantity from fraction to decimal.
+ *
+ * @param string $ingredient_quantity
+ *   The ingredient quantity formatted as a fraction.
+ *
+ * @return float
+ *   The ingredient quantity formatted as a decimal.
+ *
+ * @deprecated in project:8.x-2.0 and is removed from project:3.0.0. Use
+ *   \Drupal\ingredient\Utility\IngredientQuantityUtility::getQuantityFromFraction()
+ *   instead.
+ *
+ * @see https://www.drupal.org/project/recipe/issues/3156825
+ */
+function ingredient_quantity_from_fraction($ingredient_quantity) {
+  return \Drupal::service('ingredient.quantity')->getQuantityFromFraction($ingredient_quantity);
+}
+
+/**
+ * Returns a best-guess matched unit key for a unit of measure.
+ *
+ * @param string $subject
+ *   The unit of measure for which the function will search.
+ *
+ * @return string|false
+ *   The unit's key from configuration or FALSE if there was no match.
+ *
+ * @deprecated in project:8.x-2.0 and is removed from project:3.0.0. Use
+ *   \Drupal\ingredient\Utility\IngredientUnitFuzzymatch::getUnitFuzzymatch()
+ *   instead.
+ *
+ * @see https://www.drupal.org/project/recipe/issues/3156825
+ */
+function ingredient_unit_fuzzymatch($subject) {
+  return \Drupal::service('ingredient.fuzzymatch')->getUnitFuzzymatch($subject);
+}
+
+/**
+ * Implements hook_migration_plugins_alter().
+ */
+function ingredient_migration_plugins_alter(array &$migrations) {
+  // Check whether the recipe module is installed on the Drupal 7 source.
+  try {
+    $definition = [
+      'source' => [
+        'ignore_map' => TRUE,
+        'plugin' => 'd7_node',
+      ],
+      'destination' => [
+        'plugin' => 'null',
+      ],
+      'idMap' => [
+        'plugin' => 'null',
+      ],
+    ];
+    $node_source_plugin = \Drupal::service('plugin.manager.migration')->createStubMigration($definition)->getSourcePlugin();
+  }
+  catch (\Exception $e) {
+    return;
+  }
+
+  $system_data = $node_source_plugin->getSystemData();
+  $recipe_module_is_installed = !empty($system_data['module']['recipe']['status']);
+
+  $recipe_module_schema = (int) ($system_data['module']['recipe']['schema_version'] ?? NULL);
+  if (!$recipe_module_is_installed || ($recipe_module_schema < 7000) || ($recipe_module_schema >= 7200)) {
+    return;
+  }
+
+  $node_migrations = array_filter($migrations, function (array $plugin_definition) {
+    $destination_plugin_id = $plugin_definition['destination']['plugin'] ?? NULL;
+    $node_type = $plugin_definition['source']['node_type'] ?? NULL;
+    return in_array($destination_plugin_id, [
+      'entity:node',
+      'entity_complete:node',
+    ]) && $node_type === 'recipe';
+  });
+
+  foreach ($node_migrations as $plugin_id => $plugin_definition) {
+    $process = [
+      'plugin' => 'sub_process',
+      'source' => 'all_ingredients',
+      'process' => [
+        'target_id' => 'ingredient_id',
+        'quantity' => 'quantity',
+        'unit_key' => 'unit_key',
+        'note' => 'note',
+      ],
+    ];
+    $migrations[$plugin_id]['process']['recipe_ingredient'] = $process;
+
+    $migrations[$plugin_id]['migration_tags'][] = 'Recipe 7.x-1.x node';
+  }
+}
+
+/**
+ * Implements hook_migrate_prepare_row().
+ */
+function ingredient_migrate_prepare_row(Row $row, MigrateSourceInterface $source, MigrationInterface $migration) {
+  if (!in_array('Recipe 7.x-1.x node', $migration->getMigrationTags())) {
+    return;
+  }
+
+  if (empty($source_node_id = $row->getSourceProperty('nid'))) {
+    return;
+  }
+
+  assert($source instanceof DrupalSqlBase);
+
+  $ingredient_values = $source->getDatabase()->select('recipe_node_ingredient', 'r')
+    ->fields('r', ['ingredient_id', 'quantity', 'unit_key', 'note'])
+    ->condition('r.nid', $source_node_id)
+    ->orderBy('r.weight', 'ASC')
+    ->execute()
+    ->fetchAll(\PDO::FETCH_ASSOC);
+
+  $row->setSourceProperty('all_ingredients', $ingredient_values);
+}

@@ -1,0 +1,7 @@
+dynamic_content_page.latest_articles:
+  path: '/latest-articles'
+  defaults:
+    _controller: '\Drupal\dynamic_content_page\Controller\DynamicContentPageController::latestArticles'
+    _title: 'Latest Articles'
+  requirements:
+    _permission: 'access content'

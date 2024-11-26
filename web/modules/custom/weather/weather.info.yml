@@ -1,0 +1,7 @@
+name: 'Weather Report'
+type: module
+description: 'Displays weather data in a block using an external API.'
+core_version_requirement: ^10 || ^11
+package: Custom
+dependencies:
+  - drupal:system

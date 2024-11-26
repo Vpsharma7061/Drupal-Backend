@@ -1,0 +1,17 @@
+weather.settings:
+  path: '/admin/config/weather'
+  defaults:
+    _form: '\Drupal\weather\Form\WeatherForm'
+    _title: 'Weather Settings'
+  requirements:
+    _permission: 'administer site configuration'
+
+
+
+weather.debug:
+  path: '/weather/debug'
+  defaults:
+    _controller: '\Drupal\weather\Controller\WeatherDebugController::test'
+    _title: 'Weather Debug'
+  requirements:
+    _permission: 'access content'

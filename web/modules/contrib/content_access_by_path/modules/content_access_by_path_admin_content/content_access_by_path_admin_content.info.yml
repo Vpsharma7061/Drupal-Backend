@@ -1,0 +1,12 @@
+name: 'Content Access by Path Admin Content'
+type: module
+description: 'Restricts content in admin/content view to only show content allowed from content_access_by_path module'
+package: Content
+core_version_requirement: ^10 || ^11
+dependencies:
+  - content_access_by_path:content_access_by_path
+
+# Information added by Drupal.org packaging script on 2024-08-01
+version: '1.1.0'
+project: 'content_access_by_path'
+datestamp: 1722510524

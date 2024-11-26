@@ -1,0 +1,7 @@
+name: 'Dynamic Content Page'
+type: module
+description: 'Displays the 5 most recent articles on a custom route.'
+package: Custom
+core_version_requirement: ^10 || ^11
+dependencies:
+  - drupal:node

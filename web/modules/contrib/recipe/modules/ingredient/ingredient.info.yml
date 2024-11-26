@@ -1,0 +1,12 @@
+name: Ingredient
+type: module
+description: 'Enables the creation of recipe ingredients.'
+package: Recipe
+core_version_requirement: ^10 || ^11
+configure: ingredient.ingredient_settings
+dependencies: {  }
+
+# Information added by Drupal.org packaging script on 2024-07-09
+version: '8.x-2.2'
+project: 'recipe'
+datestamp: 1720532262

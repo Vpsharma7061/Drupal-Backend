@@ -1,0 +1,99 @@
+<?php
+
+/**
+ * @file
+ * Primary module hooks for Content Access by Path Admin Content module.
+ */
+
+use Drupal\taxonomy\Entity\Term;
+use Drupal\user\Entity\User;
+use Drupal\views\Plugin\views\query\QueryPluginBase;
+use Drupal\views\ViewExecutable;
+
+/**
+ * Implements hook_views_query_alter().
+ */
+function content_access_by_path_admin_content_views_query_alter(ViewExecutable $view, QueryPluginBase $query) {
+  // Load the current user.
+  if ($view->id() == 'content') {
+    $current_user_id = \Drupal::currentUser()->id();
+    $current_user = User::load($current_user_id);
+    if (isset($current_user->get('content_access_by_path')[0])) {
+      $editable_sections = [];
+      foreach ($current_user->get('content_access_by_path')->getValue('#list') as $term) {
+        // List all the taxonomy terms that the user has access to.
+        // Get the taxonomy term ID so we can load the term.
+        $user_sections_term_id = $term['target_id'];
+        // Load the taxonomy term.
+        $user_sections_term = Term::load($user_sections_term_id);
+        // Get the values of the 'content_access_by_path' field from the
+        // taxonomy term to pass it to the $editable_sections array.
+        foreach ($user_sections_term->get('content_access_by_path')->getValue('#list') as $term) {
+          $editable_section = $term['value'];
+          // $path will always begin with a '/' so we need to add one to the
+          // beginning of the value of the 'content_access_by_path' field
+          // from the taxonomy term if it does not already have one.
+          if ($editable_section[0] != '/') {
+            $editable_section = '/' . $editable_section;
+          }
+          $editable_sections[] = $editable_section;
+        }
+      }
+
+      $matches = [];
+      foreach ($editable_sections as $editable_section) {
+        // We need to check for NULL here in case the user has entered a path
+        // that does not exist in thee 'content_access_by_path' field in the
+        // taxonomy term.
+        if (content_access_by_path_admin_content__match_aliases($editable_section) !== NULL) {
+          $matches = array_merge(content_access_by_path_admin_content__match_aliases($editable_section), $matches);
+        }
+      }
+      // Check if $matches has any values, if not, return an empty view with
+      // an updated empty message.
+      if (!empty($matches)) {
+        // Only show nodes that the user has created or is allowed to edit.
+        $current_user_is_node_author = \Drupal::entityQuery('node')
+          ->condition('uid', Drupal::currentUser()->id())
+          ->accessCheck(TRUE);
+        $author_owned = $current_user_is_node_author->execute();
+        $matches = array_merge($author_owned, $matches);
+        $query->addWhere(0, 'nid', $matches, 'IN');
+      }
+      else {
+        // Return the results of empty view.
+        $query->addWhere(0, 'nid', NULL, 'IN');
+        $view->empty['area_text_custom']->options['content'] = t('Sorry, there is no content assigned for you to edit.');
+      }
+    }
+  }
+}
+
+/**
+ * Helper function to match aliases.
+ *
+ * @param string $initial_substring
+ *   The initial substring to match.
+ *
+ * @return array|null
+ *   An array of matching aliases, or NULL if none found.
+ */
+function content_access_by_path_admin_content__match_aliases($initial_substring) {
+  // See the queries above. Use LIKE for case-insensitive matching.
+  $connection = \Drupal::database();
+  $select = $connection
+    ->select('path_alias', 'base_table')
+    ->condition('base_table.status', 1)
+    ->fields('base_table', [
+      'path',
+    ])
+    ->condition('base_table.alias', $connection->escapeLike($initial_substring) . '%', 'LIKE');
+  $result = $select->execute();
+  $data = [];
+  foreach ($result as $record) {
+    if (strpos($record->path, '/node/') === 0) {
+      $data[] = substr($record->path, 6);
+    }
+  }
+  return $data ?: NULL;
+}

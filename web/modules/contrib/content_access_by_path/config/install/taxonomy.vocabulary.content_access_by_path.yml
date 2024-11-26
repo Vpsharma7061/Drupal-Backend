@@ -1,0 +1,7 @@
+langcode: en
+status: true
+dependencies: {  }
+name: 'Content Access by Path'
+vid: content_access_by_path
+description: ''
+weight: 0

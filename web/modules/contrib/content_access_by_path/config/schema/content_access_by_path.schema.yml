@@ -1,0 +1,8 @@
+# Schema for the configuration files of the Content Access module.
+content_access_by_path.settings:
+  type: config_object
+  label: 'Content Access by Path settings'
+  mapping:
+    roles:
+      type: checkboxes
+      label: 'Roles'

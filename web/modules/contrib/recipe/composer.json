@@ -1,0 +1,26 @@
+{
+    "name": "drupal/recipe",
+    "description": "Collect and display recipes",
+    "type": "drupal-module",
+    "license": "proprietary",
+    "authors": [
+        {
+            "name": "David Cameron (dcam)",
+            "homepage": "https://www.drupal.org/u/dcam",
+            "role": "maintainer"
+        }
+    ],
+    "require": {
+    },
+    "require-dev": {
+        "drupal/rdf": "^2 || ^3"
+    },
+    "suggest": {
+        "drupal/rdf": "Mappings for RDF metadata to default Recipe fields are optionally provided"
+    },
+    "homepage": "https://www.drupal.org/project/recipe",
+    "support": {
+        "issues": "https://www.drupal.org/project/issues/recipe",
+        "source": "https://git.drupalcode.org/project/recipe"
+    }
+}
