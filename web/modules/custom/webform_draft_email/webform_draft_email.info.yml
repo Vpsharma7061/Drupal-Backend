@@ -1,0 +1,7 @@
+name: 'Webform Draft Email'
+type: module
+description: 'Sends an email with a link to the saved webform draft.'
+core_version_requirement: ^10 || ^11
+package: Custom
+dependencies:
+  - drupal:webform

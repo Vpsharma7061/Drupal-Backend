@@ -1,0 +1,122 @@
+<?php
+
+use Drupal\Core\Url;
+use Drupal\webform\WebformSubmissionInterface;
+use Drupal\Core\Render\Markup;
+use Drupal\Core\Form\FormStateInterface;
+
+/**
+ * Implements hook_webform_submission_insert().
+ *
+ * Sends an email notification when a draft submission is saved.
+ *
+ * @param \Drupal\webform\WebformSubmissionInterface $webform_submission
+ *   The webform submission object.
+ */
+function webform_draft_email_webform_submission_insert(WebformSubmissionInterface $webform_submission) {
+  // Log function entry for debugging.
+  \Drupal::logger('webform_draft_email')->notice('Entered the webform_draft_email_webform_submission_insert function.');
+
+  // Check if the submission is a draft.
+  if ($webform_submission->isDraft()) {
+    \Drupal::logger('webform_draft_email')->notice('Draft submission saved. Submission ID: ' . $webform_submission->id());
+
+    // Load the associated webform.
+    $webform = $webform_submission->getWebform();
+
+    // Check if the webform ID matches the target webform.
+    if ($webform->id() === 'enquiry_form') {
+      $submission_data = $webform_submission->getData();
+      $email = $submission_data['email'] ?? NULL;
+
+      if ($email) {
+        \Drupal::logger('webform_draft_email')->notice('Sending email to: ' . $email);
+
+        // Generate the draft access URL.
+        $base_url = \Drupal::request()->getSchemeAndHttpHost();
+        $token = $webform_submission->getToken();
+        $url = $base_url . '/web/node?token=' . $token;
+
+        // Create the email body with a link to the draft.
+        $mail_body = Markup::create(t(
+          'Your draft webform has been saved. You can access it here: <a href=":link">View Draft</a>',
+          [':link' => $url]
+        ));
+
+        // Send the email.
+        $mail_manager = \Drupal::service('plugin.manager.mail');
+        $mail_manager->mail(
+          'webform_draft_email',
+          'webform_draft_notification',
+          $email,
+          \Drupal::languageManager()->getDefaultLanguage()->getId(),
+          [
+            'subject' => t('Your Enquiry Form Draft is Saved'),
+            'body' => [$mail_body],
+          ],
+          NULL,
+          TRUE
+        );
+
+        // Add a success message for the user.
+        \Drupal::messenger()->addMessage(t('Your draft has been saved successfully. You can return to it anytime using the link sent to your email.'));
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_mail().
+ *
+ * Handles mail keys for the module.
+ *
+ * @param string $key
+ *   The email key.
+ * @param array $message
+ *   The message array.
+ * @param array $params
+ *   Parameters passed to the email.
+ */
+function webform_draft_email_mail($key, &$message, $params) {
+  switch ($key) {
+    case 'webform_draft_notification':
+      $message['subject'] = $params['subject'];
+      $message['body'] = $params['body'];
+      break;
+  }
+}
+
+/**
+ * Implements hook_form_alter().
+ *
+ * Loads draft data into the webform submission form.
+ *
+ * @param array $form
+ *   The form array.
+ * @param \Drupal\Core\Form\FormStateInterface $form_state
+ *   The form state object.
+ * @param string $form_id
+ *   The form ID.
+ */
+function webform_draft_email_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+  $build_info = $form_state->getBuildInfo();
+  if (isset($build_info['args'][0])) {
+    $submission_id = $build_info['args'][0];
+
+    // Validate the submission ID.
+    if (is_numeric($submission_id)) {
+      $submission = \Drupal\webform\Entity\WebformSubmission::load($submission_id);
+
+      if ($submission) {
+        // Load draft data into the form.
+        $form['#default_value'] = $submission->getData();
+      }
+      else {
+        \Drupal::logger('webform_draft_email')->error('Submission not found for ID: ' . $submission_id);
+      }
+    }
+    else {
+      \Drupal::logger('webform_draft_email')->error('Invalid submission ID: ' . $submission_id);
+    }
+  }
+}
